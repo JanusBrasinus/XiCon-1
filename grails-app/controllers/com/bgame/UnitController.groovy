@@ -26,7 +26,7 @@ class UnitController {
         def enemyunits = getUserUnits(User.get(params.enemyid))
         def result = fightsim(usrunits, enemyunits)
         [result: result]
-        
+
     }
     @Secured(['ROLE_ADMIN','ROLE_USER'])
     def heal = {
@@ -35,7 +35,8 @@ class UnitController {
     }
 
     def healteam (userteam) {
-        userteam.each {it.curhp = it.maxhp}
+        userteam.each {it.curhp = it.maxhp
+        it.recalcUnit()}
 
 
     }
@@ -51,22 +52,26 @@ class UnitController {
         if (t2count > unitcount) {
             unitcount = t2count
         }
-        def t1exppool = 0
-        def t2exppool = 0
-        def t1hppool = 0
-        def t2hppool = 0
+        def t1exppool = 1
+        def t2exppool = 1
+        def t1hppool = 1
+        def t2hppool = 1
         // nicht von curr hp abhängig machen von max und dann um curr verkleinern!
         // MACHEN!!!!!!
         // nicht von curr hp abhängig machen von max und dann um curr verkleinern!
         userteam.each {
-            t1exppool += it.exp
-            t1hppool += it.curhp
+            if (it.curhp > 0){
+                t1exppool += (int)(it.exp/(it.maxhp/it.curhp))
+                t1hppool += it.curhp
+            }
         }
         def t1dpexp = (int)(t1hppool/t1exppool)
 
         enemyteam.each {
-            t2exppool += it.exp
-            t2hppool += it.curhp
+            if (it.curhp > 0){
+               t2exppool += (int)(it.exp/(it.maxhp/it.curhp))
+                t2hppool += it.curhp
+            }
         }
         def t2dpexp = (int)(t2hppool/t2exppool)
 
@@ -214,212 +219,212 @@ class UnitController {
         if (t2count < 1){
             result += "Attacker "+ userteam[0].user.username+ " wins.<br>"
             def expgain =(int)(t2exppool/t1count)
-                userteam.each{
-                    if(it.curhp >0){
-                        if(it.wtyp.value == "Nahkampf"){
-                            it.nahexp += expgain
-                        }else if(it.wtyp.value == "Fernkampf"){
-                            it.ferexp += expgain
-                        }else if(it.wtyp.value == "Magie"){
-                            it.magexp += expgain
-                        }
-                    
-                        it.recalcUnit()
-                        it.save(flush: true)
+            userteam.each{
+                if(it.curhp >0){
+                    if(it.wtyp.value == "Nahkampf"){
+                        it.nahexp += expgain
+                    }else if(it.wtyp.value == "Fernkampf"){
+                        it.ferexp += expgain
+                    }else if(it.wtyp.value == "Magie"){
+                        it.magexp += expgain
                     }
-                }
-                result += "All alive Units from "+ userteam[0].user.username+ " get "+expgain+"Exp"
-            }else if(t1count < 1){
-                result += "Enemy "+ enemyteam[0].user.username+ " wins."
-                def expgain =(int)(t1exppool/t2count)
-                enemyteam.each{
-                    if(it.curhp >0){
-                        if(it.wtyp.value == "Nahkampf"){
-                            it.nahexp += expgain
-                        }else if(it.wtyp.value == "Fernkampf"){
-                            it.ferexp += expgain
-                        }else if(it.wtyp.value == "Magie"){
-                            it.magexp += expgain
-                        }
 
-                        it.recalcUnit()
-                        it.save(flush: true)
-                    }
+                    it.recalcUnit()
+                    it.save(flush: true)
                 }
-                result += "All alive Units from "+ enemyteam[0].user.username+ " get "+expgain+"Exp"
-            }else{
-                result += "something is wrong here: t1usercount:"+t1count+" t2enemycount:"+t2count
             }
+            result += "All alive Units from "+ userteam[0].user.username+ " get "+expgain+"Exp"
+        }else if(t1count < 1){
+            result += "Enemy "+ enemyteam[0].user.username+ " wins."
+            def expgain =(int)(t1exppool/t2count)
+            enemyteam.each{
+                if(it.curhp >0){
+                    if(it.wtyp.value == "Nahkampf"){
+                        it.nahexp += expgain
+                    }else if(it.wtyp.value == "Fernkampf"){
+                        it.ferexp += expgain
+                    }else if(it.wtyp.value == "Magie"){
+                        it.magexp += expgain
+                    }
 
-            //System.out.println(result+"\n\n\n")
-            return result
-        }
-        @Secured(['ROLE_ADMIN','ROLE_USER'])
-        def fightquestion = {
-            def usr = lookupUser()
-            def enemy = User.get(params.enemyid)
-            [user: usr,enemy: enemy ]
+                    it.recalcUnit()
+                    it.save(flush: true)
+                }
+            }
+            result += "All alive Units from "+ enemyteam[0].user.username+ " get "+expgain+"Exp"
+        }else{
+            result += "something is wrong here: t1usercount:"+t1count+" t2enemycount:"+t2count
         }
 
-        @Secured(['ROLE_ADMIN'])
-        def list = {
-            params.max = Math.min(params.max ? params.int('max') : 10, 100)
-            [unitInstanceList: Unit.list(params), unitInstanceTotal: Unit.count()]
+        //System.out.println(result+"\n\n\n")
+        return result
+    }
+    @Secured(['ROLE_ADMIN','ROLE_USER'])
+    def fightquestion = {
+        def usr = lookupUser()
+        def enemy = User.get(params.enemyid)
+        [user: usr,enemy: enemy ]
+    }
+
+    @Secured(['ROLE_ADMIN'])
+    def list = {
+        params.max = Math.min(params.max ? params.int('max') : 10, 100)
+        [unitInstanceList: Unit.list(params), unitInstanceTotal: Unit.count()]
+    }
+    @Secured(['ROLE_ADMIN'])
+    def create = {
+        def unitInstance = new Unit()
+        unitInstance.properties = params
+        return [unitInstance: unitInstance]
+    }
+    @Secured(['ROLE_ADMIN','ROLE_USER'])
+    def createUnit = {
+        def unitInstance = new Unit()
+        unitInstance.properties = params
+        return [unitInstance: unitInstance]
+    }
+
+    def saveunit = {
+        def unitInstance = new Unit(params)
+        def loggeduser = lookupUser()
+        //if(loggeduser.unitcount == 0)
+        //überlegen wies beim usererstellen ausgelöst werden kann
+        //MACHEN:^abfrage einbauen ob user ne einheit hat wenn nicht erstellen
+        //mit username und main = true
+        //unitInstance.str = 10;
+        //unitInstance.main = false;
+        //unitInstance.curhp = 100;
+        //unitInstance.maxhp = 100;
+
+        unitInstance.user = loggeduser
+        unitInstance.recalcUnit()
+        if (unitInstance.save(flush: true)) {
+            flash.message = "${message(code: 'default.created.message', args: [message(code: 'unit.label', default: 'Unit'), unitInstance.id])}"
+            redirect(action: "index")
+            loggeduser.unitcount ++
         }
-        @Secured(['ROLE_ADMIN'])
-        def create = {
-            def unitInstance = new Unit()
-            unitInstance.properties = params
+        else {
+            render(view: "createUnit", model: [unitInstance: unitInstance])
+        }
+    }
+
+
+
+    def save = {
+        def unitInstance = new Unit(params)
+        if (unitInstance.save(flush: true)) {
+            flash.message = "${message(code: 'default.created.message', args: [message(code: 'unit.label', default: 'Unit'), unitInstance.id])}"
+            redirect(action: "show", id: unitInstance.id)
+        }
+        else {
+            render(view: "create", model: [unitInstance: unitInstance])
+        }
+    }
+    @Secured(['ROLE_ADMIN'])
+    def show = {
+        def unitInstance = Unit.get(params.id)
+        if (!unitInstance) {
+            flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
+            redirect(action: "list")
+        }
+        else {
+            [unitInstance: unitInstance]
+        }
+    }
+    @Secured(['ROLE_ADMIN'])
+    def edit = {
+        def unitInstance = Unit.get(params.id)
+        if (!unitInstance) {
+            flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
+            redirect(action: "list")
+        }
+        else {
             return [unitInstance: unitInstance]
         }
-        @Secured(['ROLE_ADMIN','ROLE_USER'])
-        def createUnit = {
-            def unitInstance = new Unit()
+    }
+
+    def update = {
+        def unitInstance = Unit.get(params.id)
+        if (unitInstance) {
+            if (params.version) {
+                def version = params.version.toLong()
+                if (unitInstance.version > version) {
+
+                    unitInstance.errors.rejectValue("version", "default.optimistic.locking.failure", [message(code: 'unit.label', default: 'Unit')] as Object[], "Another user has updated this Unit while you were editing")
+                    render(view: "edit", model: [unitInstance: unitInstance])
+                    return
+                }
+            }
             unitInstance.properties = params
-            return [unitInstance: unitInstance]
-        }
-
-        def saveunit = {
-            def unitInstance = new Unit(params)
-            def loggeduser = lookupUser()
-            //if(loggeduser.unitcount == 0)
-            //überlegen wies beim usererstellen ausgelöst werden kann
-            //MACHEN:^abfrage einbauen ob user ne einheit hat wenn nicht erstellen
-            //mit username und main = true
-            //unitInstance.str = 10;
-            //unitInstance.main = false;
-            //unitInstance.curhp = 100;
-            //unitInstance.maxhp = 100;
-        
-            unitInstance.user = loggeduser
-            unitInstance.recalcUnit()
-            if (unitInstance.save(flush: true)) {
-                flash.message = "${message(code: 'default.created.message', args: [message(code: 'unit.label', default: 'Unit'), unitInstance.id])}"
-                redirect(action: "index")
-                loggeduser.unitcount ++
-            }
-            else {
-                render(view: "createUnit", model: [unitInstance: unitInstance])
-            }
-        }
-
-
-
-        def save = {
-            def unitInstance = new Unit(params)
-            if (unitInstance.save(flush: true)) {
-                flash.message = "${message(code: 'default.created.message', args: [message(code: 'unit.label', default: 'Unit'), unitInstance.id])}"
+            if (!unitInstance.hasErrors() && unitInstance.save(flush: true)) {
+                flash.message = "${message(code: 'default.updated.message', args: [message(code: 'unit.label', default: 'Unit'), unitInstance.id])}"
                 redirect(action: "show", id: unitInstance.id)
             }
             else {
-                render(view: "create", model: [unitInstance: unitInstance])
+                render(view: "edit", model: [unitInstance: unitInstance])
             }
         }
-        @Secured(['ROLE_ADMIN'])
-        def show = {
-            def unitInstance = Unit.get(params.id)
-            if (!unitInstance) {
-                flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
-                redirect(action: "list")
-            }
-            else {
-                [unitInstance: unitInstance]
-            }
+        else {
+            flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
+            redirect(action: "list")
         }
-        @Secured(['ROLE_ADMIN'])
-        def edit = {
-            def unitInstance = Unit.get(params.id)
-            if (!unitInstance) {
-                flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
-                redirect(action: "list")
-            }
-            else {
-                return [unitInstance: unitInstance]
-            }
-        }
-
-        def update = {
-            def unitInstance = Unit.get(params.id)
-            if (unitInstance) {
-                if (params.version) {
-                    def version = params.version.toLong()
-                    if (unitInstance.version > version) {
-                    
-                        unitInstance.errors.rejectValue("version", "default.optimistic.locking.failure", [message(code: 'unit.label', default: 'Unit')] as Object[], "Another user has updated this Unit while you were editing")
-                        render(view: "edit", model: [unitInstance: unitInstance])
-                        return
-                    }
-                }
-                unitInstance.properties = params
-                if (!unitInstance.hasErrors() && unitInstance.save(flush: true)) {
-                    flash.message = "${message(code: 'default.updated.message', args: [message(code: 'unit.label', default: 'Unit'), unitInstance.id])}"
-                    redirect(action: "show", id: unitInstance.id)
-                }
-                else {
-                    render(view: "edit", model: [unitInstance: unitInstance])
-                }
-            }
-            else {
-                flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
-                redirect(action: "list")
-            }
-        }
-
-        def delete = {
-            def unitInstance = Unit.get(params.id)
-            if (unitInstance) {
-                try {
-                    unitInstance.delete(flush: true)
-                    flash.message = "${message(code: 'default.deleted.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
-                    redirect(action: "list")
-                }
-                catch (org.springframework.dao.DataIntegrityViolationException e) {
-                    flash.message = "${message(code: 'default.not.deleted.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
-                    redirect(action: "show", id: params.id)
-                }
-            }
-            else {
-                flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
-                redirect(action: "list")
-            }
-        }
-
-        private getUserUnits(User usr){
-            def units = Unit.withCriteria {
-                user {
-                    eq 'username', usr.username
-                }
-                //maxResults 10
-                //order 'asc'
-            }
-            // def usera = User.findByUsername('xian')
-            //System.out.println(usera.username)
-            //units.each { println it.unitname }
-            //Userunit.each {System.out.println(it.gold) }
-            //System.out.println("ergebnis ende")
-            units
-        }
-
-        private getEnemyUsers(User usr){
-            //System.out.println("\n\n\n1geht")
-            def enemys = User.withCriteria {
-                ne ('username', usr.username)
-                gt("unitcount",0)
-        
-                //maxResults 10
-                //order 'asc'
-            }
-            // def usera = User.findByUsername('xian')
-            //System.out.println(usera.username)
-            //units.each { println it.unitname }
-            //Userunit.each {System.out.println(it.gold) }
-            //System.out.println("ergebnis ende")
-            enemys
-        }
-
-
-        private lookupUser(){
-            User.get(springSecurityService.principal.id)
-        }
-
     }
+
+    def delete = {
+        def unitInstance = Unit.get(params.id)
+        if (unitInstance) {
+            try {
+                unitInstance.delete(flush: true)
+                flash.message = "${message(code: 'default.deleted.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
+                redirect(action: "list")
+            }
+            catch (org.springframework.dao.DataIntegrityViolationException e) {
+                flash.message = "${message(code: 'default.not.deleted.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
+                redirect(action: "show", id: params.id)
+            }
+        }
+        else {
+            flash.message = "${message(code: 'default.not.found.message', args: [message(code: 'unit.label', default: 'Unit'), params.id])}"
+            redirect(action: "list")
+        }
+    }
+
+    private getUserUnits(User usr){
+        def units = Unit.withCriteria {
+            user {
+                eq 'username', usr.username
+            }
+            //maxResults 10
+            //order 'asc'
+        }
+        // def usera = User.findByUsername('xian')
+        //System.out.println(usera.username)
+        //units.each { println it.unitname }
+        //Userunit.each {System.out.println(it.gold) }
+        //System.out.println("ergebnis ende")
+        units
+    }
+
+    private getEnemyUsers(User usr){
+        //System.out.println("\n\n\n1geht")
+        def enemys = User.withCriteria {
+            ne ('username', usr.username)
+            gt("unitcount",0)
+
+            //maxResults 10
+            //order 'asc'
+        }
+        // def usera = User.findByUsername('xian')
+        //System.out.println(usera.username)
+        //units.each { println it.unitname }
+        //Userunit.each {System.out.println(it.gold) }
+        //System.out.println("ergebnis ende")
+        enemys
+    }
+
+
+    private lookupUser(){
+        User.get(springSecurityService.principal.id)
+    }
+
+}
